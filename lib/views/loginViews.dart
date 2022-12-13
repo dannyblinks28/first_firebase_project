@@ -2,7 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:first_firebase_project/constants/routes.dart';
 import 'package:first_firebase_project/views/privateNoteView.dart';
 import 'package:flutter/material.dart';
-import 'dart:developer' as devtools show log;
+import '../utilities/show_error_dialog.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -31,8 +31,11 @@ class _LoginViewState extends State<LoginView> {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      child: Container(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Login'),
+      ),
+      body: Container(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -53,31 +56,54 @@ class _LoginViewState extends State<LoginView> {
               decoration: InputDecoration(hintText: 'Input password'),
             ),
             TextButton(
-              onPressed: () async {
-                final email = _email.text;
-                final password = _password.text;
-                final UserCredential = await FirebaseAuth.instance
-                    .signInWithEmailAndPassword(
-                        email: email, password: password);
-                try {
-                  await FirebaseAuth.instance.signInWithEmailAndPassword(
-                    email: email,
-                    password: password,
-                  );
-                  Navigator.of(context).pushNamedAndRemoveUntil(
-                    mynotesRoute,
-                    (route) => false,
-                  );
-                } on FirebaseAuthException catch (e) {
-                  if (e.code == 'user-not-found') {
-                    devtools.log('user not found');
-                  } else if (e.code == 'wrong-password') {
-                    devtools.log('wrong password');
+                onPressed: () async {
+                  final email = _email.text;
+                  final password = _password.text;
+                  try {
+                    await FirebaseAuth.instance.signInWithEmailAndPassword(
+                      email: email,
+                      password: password,
+                    );
+                    final user = FirebaseAuth.instance.currentUser;
+                    if(user?.emailVerified ?? false){
+                      //user's email is verified
+                      Navigator.of(context).pushNamedAndRemoveUntil(
+                      mynotesRoute,
+                      (route) => false,
+                    );
+                    } else {
+                      //user's email is NOT verified
+                      Navigator.of(context).pushNamedAndRemoveUntil(
+                      verifyEmailRoute,
+                      (route) => false,
+                    );
+                    }
+                    
+                  } on FirebaseAuthException catch (e) {
+                    if (e.code == 'user-not-found') {
+                      await showErrorDialog(
+                        context,
+                        'User not found',
+                      );
+                    } else if (e.code == 'wrong-password') {
+                      await showErrorDialog(
+                        context,
+                        'Wrong credentials',
+                      );
+                    } else {
+                      await showErrorDialog(
+                        context,
+                        'Error: ${e.code}',
+                      );
+                    }
+                  } catch (e) {
+                    await showErrorDialog(
+                      context,
+                      e.toString(),
+                    );
                   }
-                }
-              },
-              child: Text('Login'),
-            ),
+                },
+                child: Text('Login')),
             Container(
               height: 1,
               width: double.infinity,

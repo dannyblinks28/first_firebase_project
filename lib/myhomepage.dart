@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:first_firebase_project/constants/routes.dart';
+import 'package:first_firebase_project/utilities/show_error_dialog.dart';
 import 'package:first_firebase_project/views/loginViews.dart';
 import 'package:flutter/material.dart';
 import 'dart:developer' as devtools show log;
@@ -65,18 +66,33 @@ class _MyHomePageState extends State<MyHomePage> {
                       email: email,
                       password: password,
                     );
-                    Navigator.of(context).pushNamedAndRemoveUntil(
-                      loginRoute,
-                      (route) => false,
-                    );
+                    final user = FirebaseAuth.instance.currentUser;
+                    await user?.sendEmailVerification();
+                    Navigator.of(context).pushNamed(verifyEmailRoute);
                   } on FirebaseAuthException catch (e) {
                     if (e.code == 'weak-password') {
-                      devtools.log('weak password');
+                      await showErrorDialog(
+                        context,
+                        'Weak password',
+                      );
                     } else if (e.code == 'email-already-in-use') {
-                      devtools.log('email already in use');
+                      await showErrorDialog(
+                        context,
+                        'Email already in use',
+                      );
                     } else if (e.code == 'invalid-email') {
-                      devtools.log('invalied email entered');
+                      await showErrorDialog(
+                        context,
+                        'Invalid email entered',
+                      );
+                    } else {
+                      await showErrorDialog(context, 'Error: ${e.code}');
                     }
+                  } catch (e) {
+                    await showErrorDialog(
+                      context,
+                      e.toString(),
+                    );
                   }
                 },
                 child: Text('Register')),

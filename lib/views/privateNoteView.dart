@@ -84,9 +84,9 @@ class _PrivateNoteViewState extends State<PrivateNoteView> {
                   if (shouldLogout) {
                     await FirebaseAuth.instance.signOut();
                     Navigator.of(context).pushNamedAndRemoveUntil(
-                    loginRoute,
-                    (route) => false,
-                  ); 
+                      loginRoute,
+                      (route) => false,
+                    );
                   }
               }
             },
@@ -109,7 +109,7 @@ class _PrivateNoteViewState extends State<PrivateNoteView> {
           }
 
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Text("Loading");
+            return const CircularProgressIndicator();
           }
 
           return ListView(
