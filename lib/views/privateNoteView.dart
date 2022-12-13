@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:first_firebase_project/views/loginViews.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/src/widgets/container.dart';
@@ -7,6 +6,8 @@ import 'package:flutter/src/widgets/framework.dart';
 import 'dart:developer' as devtools show log;
 
 import '../constants/routes.dart';
+import '../enums/menu_actions.dart';
+import '../services/auth/auth_service.dart';
 import '../util/myNotes.dart';
 import 'dialogBox.dart';
 
@@ -19,8 +20,6 @@ class PrivateNoteView extends StatefulWidget {
 
 //text controller
 final _controller = TextEditingController();
-
-enum MenuAction { logout }
 
 class _PrivateNoteViewState extends State<PrivateNoteView> {
   CollectionReference post = FirebaseFirestore.instance.collection('post');
@@ -82,7 +81,7 @@ class _PrivateNoteViewState extends State<PrivateNoteView> {
                 case MenuAction.logout:
                   final shouldLogout = await showLogOutDialog(context);
                   if (shouldLogout) {
-                    await FirebaseAuth.instance.signOut();
+                    await AuthService.firebase().logOut();
                     Navigator.of(context).pushNamedAndRemoveUntil(
                       loginRoute,
                       (route) => false,
