@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
@@ -10,12 +11,44 @@ import 'crud_exceptions.dart';
 class PrivateNoteService {
   Database? _db;
 
+  List<DataBasePrivateNote> _notes = [];
+
+  final _privateNotesStreamController =
+      StreamController<List<DataBasePrivateNote>>.broadcast();
+
+  //to get all notes in noteService
+  Stream<List<DataBasePrivateNote>> get allPrivateNotes =>
+      _privateNotesStreamController.stream;
+
+//get or create user in note
+  Future<DataBaseUser> getOrCreateUser({required String email}) async {
+    try {
+      final user = await getUser(email: email);
+      return user;
+    } on CouldNotFindUserExeception {
+      final createdUser = await createUser(email: email);
+      return createdUser;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  //reading and caching notes
+  Future<void> _cachePrivateNotes() async {
+    final allPrivateNote = await getAllPrivateNote();
+    _notes = allPrivateNote.toList();
+    _privateNotesStreamController.add(_notes);
+  }
+
   //updating existing notes
-  Future<DataBasePrivateNote> updatePrivateNote({required DataBasePrivateNote note, required String text}) async {
+  Future<DataBasePrivateNote> updatePrivateNote(
+      {required DataBasePrivateNote note, required String text}) async {
+    await _ensureDbIsOpen();
     final db = _getDatabaseOrThrow();
 
+    //make sure note exist
     await getPrivateNote(id: note.id);
-
+    //update database
     final updatesCount = await db.update(noteTable, {
       textColumn: text,
       isSyncedWithCloudColumn: 0,
@@ -23,12 +56,17 @@ class PrivateNoteService {
     if (updatesCount == 0) {
       throw CouldNotUpdatePrivateNoteExeception();
     } else {
-      return await getPrivateNote(id: note.id);
+      final updatedPrivateNote = await getPrivateNote(id: note.id);
+      _notes.removeWhere((element) => note.id == updatedPrivateNote.id);
+      _notes.add(updatedPrivateNote);
+      _privateNotesStreamController.add(_notes);
+      return updatedPrivateNote;
     }
   }
 
   //fetching all the notes
   Future<Iterable<DataBasePrivateNote>> getAllPrivateNote() async {
+    await _ensureDbIsOpen();
     final db = _getDatabaseOrThrow();
     final notes = await db.query(noteTable);
     return notes.map((noteRow) => DataBasePrivateNote.fromRow(noteRow));
@@ -47,18 +85,31 @@ class PrivateNoteService {
       throw CouldNotFindPrivateNoteExeception();
     } else {
       //we create an instance of our databasenote
-      return DataBasePrivateNote.fromRow(notes.first);
+      final note = DataBasePrivateNote.fromRow(notes.first);
+      _notes.removeWhere((note) => note.id == id);
+      _notes.add(note);
+      _privateNotesStreamController.add(_notes);
+
+      return note;
     }
   }
 
   //ability to delete all notes
   Future<int> deleteAllPrivateNotes() async {
+    await _ensureDbIsOpen();
     final db = _getDatabaseOrThrow();
-    return await db.delete(noteTable);
+    final numberOfDeletions = await db.delete(noteTable);
+    //making sure our local cache is deleted
+    _notes = [];
+    //also making sure that the UI of our class is updated
+    _privateNotesStreamController.add(_notes);
+
+    return numberOfDeletions;
   }
 
   //notes to be deleted
   Future<void> deletePrivateNote({required int id}) async {
+    await _ensureDbIsOpen();
     final db = _getDatabaseOrThrow();
     final deletedCount = await db.delete(
       noteTable,
@@ -67,11 +118,16 @@ class PrivateNoteService {
     );
     if (deletedCount == 0) {
       throw CouldNotDeleteNoteExeception();
+    } else {
+      //delete note from cache
+      _notes.removeWhere((note) => note.id == id);
     }
   }
 
   //creation of new notes
-  Future<DataBasePrivateNote> createPrivateNote({required DataBaseUser owner}) async {
+  Future<DataBasePrivateNote> createPrivateNote(
+      {required DataBaseUser owner}) async {
+    await _ensureDbIsOpen();
     final db = _getDatabaseOrThrow();
 
     //make sure owner exist in the database with the correct id
@@ -94,11 +150,16 @@ class PrivateNoteService {
       isSyncedWithCloud: true,
     );
 
+    //after creating notes we add it to our notes and streamcontroller
+    _notes.add(note);
+    _privateNotesStreamController.add(_notes);
+
     return note;
   }
 
   //ability to fetch users
   Future<DataBaseUser> getUser({required String email}) async {
+    await _ensureDbIsOpen();
     final db = _getDatabaseOrThrow();
     final results = await db.query(
       userTable,
@@ -115,6 +176,7 @@ class PrivateNoteService {
 
   //allowing users to be created
   Future<DataBaseUser> createUser({required String email}) async {
+    await _ensureDbIsOpen();
     final db = _getDatabaseOrThrow();
     final results = await db.query(
       userTable,
@@ -138,6 +200,7 @@ class PrivateNoteService {
 
   //allowing users to be deleted
   Future<void> deleteUser({required String email}) async {
+    await _ensureDbIsOpen();
     final db = _getDatabaseOrThrow();
     final deletedCount = await db.delete(
       userTable,
@@ -170,6 +233,14 @@ class PrivateNoteService {
     }
   }
 
+  //ensuring our database is open
+  Future<void> _ensureDbIsOpen() async {
+    try {
+      await open();
+    } on DataBaseAlreadyOpenExeception {}
+    //empty
+  }
+
   //open our database
   Future<void> open() async {
     if (_db != null) {
@@ -184,6 +255,7 @@ class PrivateNoteService {
       await db.execute(createUserTable);
       //create note table
       await db.execute(createPrivateNoteTable);
+      await _cachePrivateNotes();
     } on MissingPlatformDirectoryException {
       throw UnableToGetDocumentsDirectory();
     }

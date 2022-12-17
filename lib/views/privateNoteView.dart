@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:first_firebase_project/services/crud/note_service.dart';
 import 'package:first_firebase_project/views/loginViews.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/src/widgets/container.dart';
@@ -22,6 +23,21 @@ class PrivateNoteView extends StatefulWidget {
 final _controller = TextEditingController();
 
 class _PrivateNoteViewState extends State<PrivateNoteView> {
+  late final PrivateNoteService _noteService;
+  String get userEmail => AuthService.firebase().currentUser!.email!;
+
+  @override
+  void initState() {
+    _noteService = PrivateNoteService();
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    _noteService.close();
+    super.dispose();
+  }
+
   CollectionReference post = FirebaseFirestore.instance.collection('post');
   final Stream<QuerySnapshot> _postStream =
       FirebaseFirestore.instance.collection('post').snapshots();
